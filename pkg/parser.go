@@ -2,7 +2,7 @@ package optimizedconn
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"github.com/scionproto/scion/go/lib/addr"
 	"github.com/scionproto/scion/go/lib/common"
 	"github.com/scionproto/scion/go/lib/snet"
@@ -17,6 +17,8 @@ type PacketSerializer struct {
 	listenAddr *net.UDPAddr
 	remoteAddr *snet.UDPAddr
 }
+
+const SCION_PROTOCOL_NUMBER_SCION_UDP = 17
 
 func NewPacketSerializer(localIA addr.IA, listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*PacketSerializer, error) {
 
@@ -57,8 +59,6 @@ func NewPacketSerializer(localIA addr.IA, listenAddr *net.UDPAddr, remoteAddr *s
 	// We use the Packet to calculate the correct sum and subtract our dummy payload.
 	basePayloadBytes := int(binary.BigEndian.Uint16(preparedPacket.Bytes[6:8]) - 8)
 
-	fmt.Printf("headerBytes=%v basePayloadBytes=%v\n", headerBytes, basePayloadBytes)
-
 	pS := PacketSerializer{
 		listenAddr: listenAddr,
 		remoteAddr: remoteAddr,
@@ -89,7 +89,7 @@ func (pS *PacketSerializer) Serialize(b []byte) ([]byte, error) {
 }
 
 type PacketParser struct {
-	readBuffer []byte
+	ReadBuffer []byte
 }
 
 func NewPacketParser() (*PacketParser, error) {
@@ -97,20 +97,26 @@ func NewPacketParser() (*PacketParser, error) {
 	readBuffer := make([]byte, common.MaxMTU)
 
 	packetParser := PacketParser{
-		readBuffer: readBuffer,
+		ReadBuffer: readBuffer,
 	}
 
 	return &packetParser, nil
 }
 
-func (pP *PacketParser) Parse(n int, readBytes []byte) int {
+func (pP *PacketParser) Parse(n int, readBytes []byte) (int, error) {
 	// Payload is L4 UDP, we need to unpack this too. This has a fixed length of 8 bytes.
-	udpPayloadLen := int(binary.BigEndian.Uint16(pP.readBuffer[6:8]))
+	nextHdr := uint16(pP.ReadBuffer[4])
+
+	if nextHdr != SCION_PROTOCOL_NUMBER_SCION_UDP {
+		return 0, errors.New("Unknown Packet")
+	}
+
+	udpPayloadLen := int(binary.BigEndian.Uint16(pP.ReadBuffer[6:8]))
 
 	payloadLen := udpPayloadLen - 8
 	startPos := n - payloadLen
 
-	copy(readBytes, pP.readBuffer[startPos:n])
+	copy(readBytes, pP.ReadBuffer[startPos:n])
 
-	return payloadLen
+	return payloadLen, nil
 }

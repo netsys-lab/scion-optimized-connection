@@ -125,6 +125,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	nextHop := remoteAddr.NextHop
 
+	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		nextHop = &net.UDPAddr{
 			IP:   remoteAddr.Host.IP,
@@ -169,13 +170,17 @@ func (c *OptimizedSCIONConn) Close() error {
 
 func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 
-	n, err := c.transportConn.Read(c.packetParser.readBuffer)
+	n, err := c.transportConn.Read(c.packetParser.ReadBuffer)
 
 	if err != nil {
 		return 0, err
 	}
 
-	payloadLen := c.packetParser.Parse(n, b)
+	payloadLen, err := c.packetParser.Parse(n, b)
+
+	if err != nil {
+		return 0, err
+	}
 
 	return payloadLen, nil
 }
