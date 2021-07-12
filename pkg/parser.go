@@ -88,6 +88,12 @@ func (pS *PacketSerializer) Serialize(b []byte) ([]byte, error) {
 	return pS.baseBytes[0:dataLength], nil
 }
 
+func (pS *PacketSerializer) GetHeaderLen() int {
+	// ps.HeaderBytes contains the header length without the UDP header.
+	// An UDP header is 8 bytes long.
+	return pS.headerBytes + 8
+}
+
 type PacketParser struct {
 	ReadBuffer []byte
 }
