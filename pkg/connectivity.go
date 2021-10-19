@@ -20,7 +20,7 @@ type ConnectivityContext struct {
 
 func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, error) {
 
-	daemonConn, err := finddaemon(ctx)
+	daemonConn, err := findSciond(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,16 +63,16 @@ func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, erro
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-func finddaemon(ctx context.Context) (daemon.Connector, error) {
+func findSciond(ctx context.Context) (daemon.Connector, error) {
 	address, ok := os.LookupEnv("SCION_DAEMON_ADDRESS")
 	if !ok {
 		address = daemon.DefaultAPIAddress
 	}
-	daemonConn, err := daemon.NewService(address).Connect(ctx)
+	sciondConn, err := daemon.NewService(address).Connect(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to daemon at %s (override with SCION_DAEMON_ADDRESS): %w", address, err)
+		return nil, fmt.Errorf("unable to connect to SCIOND at %s (override with SCION_DAEMON_ADDRESS): %w", address, err)
 	}
-	return daemonConn, nil
+	return sciondConn, nil
 }
 
 func findDispatcher() (reliable.Dispatcher, error) {
