@@ -3,23 +3,24 @@ package optimizedconn
 import (
 	"context"
 	"fmt"
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/sciond"
-	"github.com/scionproto/scion/go/lib/sock/reliable"
 	"os"
+
+	"github.com/scionproto/scion/go/lib/addr"
+	"github.com/scionproto/scion/go/lib/daemon"
+	"github.com/scionproto/scion/go/lib/sock/reliable"
 )
 
 // Took from appnet and modified a bit.
 
 type ConnectivityContext struct {
-	DaemonConn sciond.Connector
+	DaemonConn daemon.Connector
 	Dispatcher reliable.Dispatcher
 	LocalIA    addr.IA
 }
 
 func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, error) {
 
-	daemonConn, err := findSciond(ctx)
+	daemonConn, err := finddaemon(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -62,16 +63,16 @@ func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, erro
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-func findSciond(ctx context.Context) (sciond.Connector, error) {
+func finddaemon(ctx context.Context) (daemon.Connector, error) {
 	address, ok := os.LookupEnv("SCION_DAEMON_ADDRESS")
 	if !ok {
-		address = sciond.DefaultAPIAddress
+		address = daemon.DefaultAPIAddress
 	}
-	sciondConn, err := sciond.NewService(address).Connect(ctx)
+	daemonConn, err := daemon.NewService(address).Connect(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to SCIOND at %s (override with SCION_DAEMON_ADDRESS): %w", address, err)
+		return nil, fmt.Errorf("unable to connect to daemon at %s (override with SCION_DAEMON_ADDRESS): %w", address, err)
 	}
-	return sciondConn, nil
+	return daemonConn, nil
 }
 
 func findDispatcher() (reliable.Dispatcher, error) {
