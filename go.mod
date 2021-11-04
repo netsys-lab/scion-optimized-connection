@@ -1,4 +1,4 @@
-module github.com/johannwagner/scion-optimized-connection
+module github.com/netsys-lab/scion-optimized-connection
 
 go 1.16
 

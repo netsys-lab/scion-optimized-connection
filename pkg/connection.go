@@ -1,18 +1,20 @@
 package optimizedconn
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/netsec-ethz/scion-apps/pkg/appnet"
 	"github.com/scionproto/scion/go/lib/addr"
 	"github.com/scionproto/scion/go/lib/serrors"
 	"github.com/scionproto/scion/go/lib/snet"
 	"github.com/scionproto/scion/go/lib/topology/underlay"
-	"net"
-	"os"
-	"sync"
-	"time"
 )
 
 type MergedConn interface {
@@ -127,11 +129,20 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
-		nextHop = &net.UDPAddr{
-			IP:   remoteAddr.Host.IP,
-			Port: underlay.EndhostPort,
-			Zone: remoteAddr.Host.Zone,
+		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
+			nextHop = &net.UDPAddr{
+				IP:   remoteAddr.Host.IP,
+				Port: remoteAddr.Host.Port,
+				Zone: remoteAddr.Host.Zone,
+			}
+		} else {
+			nextHop = &net.UDPAddr{
+				IP:   remoteAddr.Host.IP,
+				Port: underlay.EndhostPort,
+				Zone: remoteAddr.Host.Zone,
+			}
 		}
+
 	}
 
 	fmt.Printf("Using nextHop=%v\n", nextHop)
@@ -153,6 +164,54 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	return oSC, nil
 
+}
+
+func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
+	// We check, if there is a path.
+	if remoteAddr.Path.IsEmpty() {
+
+		err := appnet.SetDefaultPath(remoteAddr)
+		if err != nil {
+			return err
+		}
+	}
+
+	nextHop := remoteAddr.NextHop
+
+	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
+		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
+			nextHop = &net.UDPAddr{
+				IP:   remoteAddr.Host.IP,
+				Port: remoteAddr.Host.Port,
+				Zone: remoteAddr.Host.Zone,
+			}
+		} else {
+			nextHop = &net.UDPAddr{
+				IP:   remoteAddr.Host.IP,
+				Port: underlay.EndhostPort,
+				Zone: remoteAddr.Host.Zone,
+			}
+		}
+	}
+
+	fmt.Printf("Using nextHop=%v\n", nextHop)
+
+	oSC.remoteAddr = remoteAddr
+	oSC.nextHop = nextHop
+
+	packetSerializer, err := NewPacketSerializer(
+		oSC.connectivityContext.LocalIA,
+		oSC.listenAddr,
+		remoteAddr,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	oSC.packetSerializer = packetSerializer
+	return nil
 }
 
 func (c *OptimizedSCIONConn) Close() error {

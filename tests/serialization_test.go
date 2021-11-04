@@ -1,14 +1,15 @@
 package main
 
 import (
-	optimizedconn "github.com/johannwagner/scion-optimized-connection/pkg"
-	"github.com/netsec-ethz/scion-apps/pkg/appnet"
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/common"
-	"github.com/scionproto/scion/go/lib/snet"
 	"math/rand"
 	"net"
 	"testing"
+
+	"github.com/netsec-ethz/scion-apps/pkg/appnet"
+	optimizedconn "github.com/netsys-lab/scion-optimized-connection/pkg"
+	"github.com/scionproto/scion/go/lib/addr"
+	"github.com/scionproto/scion/go/lib/common"
+	"github.com/scionproto/scion/go/lib/snet"
 )
 
 func BenchmarkOptimizedSerialization(b *testing.B) {
@@ -73,7 +74,7 @@ func BenchmarkStandardSerialization(b *testing.B) {
 	}
 
 	scionDestinationAddress := snet.SCIONAddress{
-		IA: remoteAddr.IA,
+		IA:   remoteAddr.IA,
 		Host: addr.HostFromIP(remoteAddr.Host.IP),
 	}
 
@@ -85,10 +86,7 @@ func BenchmarkStandardSerialization(b *testing.B) {
 		Host: addr.HostFromIP(listenAddr.IP),
 	}
 
-
 	packetBuffer := make([]byte, common.MaxMTU)
-
-
 
 	b.SetBytes(int64(BYTES))
 	b.ResetTimer()
@@ -98,8 +96,8 @@ func BenchmarkStandardSerialization(b *testing.B) {
 			Bytes: snet.Bytes(packetBuffer),
 			PacketInfo: snet.PacketInfo{
 				Destination: scionDestinationAddress,
-				Source: scionListenAddress,
-				Path: remoteAddr.Path,
+				Source:      scionListenAddress,
+				Path:        remoteAddr.Path,
 				Payload: snet.UDPPayload{
 					SrcPort: uint16(listenAddr.Port),
 					DstPort: uint16(remoteAddr.Host.Port),
