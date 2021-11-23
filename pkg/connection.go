@@ -42,6 +42,7 @@ type OptimizedSCIONConn struct {
 }
 
 var _ net.Conn = &OptimizedSCIONConn{}
+var _ net.PacketConn = &OptimizedSCIONConn{}
 
 func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 
@@ -108,64 +109,6 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 	return &optimizedSCIONConn, nil
 }
 
-func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONConn, error) {
-
-	oSC, err := Listen(listenAddr)
-
-	if err != nil {
-		return nil, err
-	}
-
-	// We check, if there is a path.
-	if remoteAddr.Path.IsEmpty() {
-
-		err := appnet.SetDefaultPath(remoteAddr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	nextHop := remoteAddr.NextHop
-
-	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
-	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
-		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: remoteAddr.Host.Port,
-				Zone: remoteAddr.Host.Zone,
-			}
-		} else {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: underlay.EndhostPort,
-				Zone: remoteAddr.Host.Zone,
-			}
-		}
-
-	}
-
-	fmt.Printf("Using nextHop=%v\n", nextHop)
-
-	oSC.remoteAddr = remoteAddr
-	oSC.nextHop = nextHop
-
-	packetSerializer, err := NewPacketSerializer(
-		oSC.connectivityContext.LocalIA,
-		oSC.listenAddr,
-		remoteAddr,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	oSC.packetSerializer = packetSerializer
-
-	return oSC, nil
-
-}
-
 func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	// We check, if there is a path.
 	if remoteAddr.Path.IsEmpty() {
@@ -214,6 +157,55 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	return nil
 }
 
+func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONConn, error) {
+
+	oSC, err := Listen(listenAddr)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// We check, if there is a path.
+	if remoteAddr.Path.IsEmpty() {
+
+		err := appnet.SetDefaultPath(remoteAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	nextHop := remoteAddr.NextHop
+
+	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
+		nextHop = &net.UDPAddr{
+			IP:   remoteAddr.Host.IP,
+			Port: underlay.EndhostPort,
+			Zone: remoteAddr.Host.Zone,
+		}
+	}
+
+	fmt.Printf("Using nextHop=%v\n", nextHop)
+
+	oSC.remoteAddr = remoteAddr
+	oSC.nextHop = nextHop
+
+	packetSerializer, err := NewPacketSerializer(
+		oSC.connectivityContext.LocalIA,
+		oSC.listenAddr,
+		remoteAddr,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	oSC.packetSerializer = packetSerializer
+
+	return oSC, nil
+
+}
+
 func (c *OptimizedSCIONConn) Close() error {
 
 	if c.udpTransportConn != nil {
@@ -225,6 +217,23 @@ func (c *OptimizedSCIONConn) Close() error {
 	}
 
 	return c.unixTransportConn.Close()
+}
+
+func (c *OptimizedSCIONConn) ReadFrom(b []byte) (int, net.Addr, error) {
+
+	n, err := c.transportConn.Read(c.packetParser.ReadBuffer)
+
+	if err != nil {
+		return 0, nil, err
+	}
+
+	payloadLen, err := c.packetParser.Parse(n, b)
+
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return payloadLen, nil, nil
 }
 
 func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
@@ -245,6 +254,25 @@ func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 }
 
 func (c *OptimizedSCIONConn) Write(b []byte) (int, error) {
+
+	if c.nextHop == nil || c.remoteAddr == nil || c.packetSerializer == nil {
+		return 0, errors.New("Connection does not support send functionality")
+	}
+
+	buffer, err := c.packetSerializer.Serialize(b)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = c.transportConn.WriteTo(buffer, c.nextHop)
+
+	if err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+func (c *OptimizedSCIONConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 
 	if c.nextHop == nil || c.remoteAddr == nil || c.packetSerializer == nil {
 		return 0, errors.New("Connection does not support send functionality")
