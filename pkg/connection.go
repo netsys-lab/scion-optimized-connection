@@ -1,10 +1,9 @@
 package optimizedconn
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
+
 	"net"
 	"os"
 	"sync"
@@ -15,6 +14,7 @@ import (
 	"github.com/scionproto/scion/go/lib/serrors"
 	"github.com/scionproto/scion/go/lib/snet"
 	"github.com/scionproto/scion/go/lib/topology/underlay"
+	log "github.com/sirupsen/logrus"
 )
 
 type MergedConn interface {
@@ -79,10 +79,10 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 	var transportConn MergedConn
 
 	if udpTransportConn != nil {
-		fmt.Printf("Using udp as transportConn\n")
+		log.Debug("Using udp as transportConn\n")
 		transportConn = udpTransportConn
 	} else {
-		fmt.Printf("Using unix as transportConn\n")
+		log.Debug("Using unix as transportConn\n")
 		transportConn = unixTransportConn
 	}
 
@@ -127,25 +127,16 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	nextHop := remoteAddr.NextHop
 
-	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	log.Debugf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
-		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: remoteAddr.Host.Port,
-				Zone: remoteAddr.Host.Zone,
-			}
-		} else {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: underlay.EndhostPort,
-				Zone: remoteAddr.Host.Zone,
-			}
+		nextHop = &net.UDPAddr{
+			IP:   remoteAddr.Host.IP,
+			Port: underlay.EndhostPort,
+			Zone: remoteAddr.Host.Zone,
 		}
-
 	}
 
-	fmt.Printf("Using nextHop=%v\n", nextHop)
+	log.Debugf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
@@ -178,24 +169,16 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 
 	nextHop := remoteAddr.NextHop
 
-	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	log.Debugf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
-		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: remoteAddr.Host.Port,
-				Zone: remoteAddr.Host.Zone,
-			}
-		} else {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: underlay.EndhostPort,
-				Zone: remoteAddr.Host.Zone,
-			}
+		nextHop = &net.UDPAddr{
+			IP:   remoteAddr.Host.IP,
+			Port: underlay.EndhostPort,
+			Zone: remoteAddr.Host.Zone,
 		}
 	}
 
-	fmt.Printf("Using nextHop=%v\n", nextHop)
+	log.Debugf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
