@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/netsec-ethz/scion-apps/pkg/appnet"
-	"github.com/scionproto/scion/go/lib/addr"
+	"github.com/phayes/freeport"
 	"github.com/scionproto/scion/go/lib/serrors"
 	"github.com/scionproto/scion/go/lib/snet"
 	"github.com/scionproto/scion/go/lib/topology/underlay"
@@ -45,7 +45,7 @@ var _ net.Conn = &OptimizedSCIONConn{}
 var _ net.PacketConn = &OptimizedSCIONConn{}
 
 func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
-
+	fmt.Printf("Listen on %s\n", listenAddr.String())
 	if listenAddr == nil || listenAddr.IP == nil || listenAddr.IP.IsUnspecified() {
 		return nil, serrors.New("listen addr is unspecified")
 	}
@@ -56,14 +56,15 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 		return nil, err
 	}
 
-	unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
-	unixTransportConn := unixTransportPacketConn.(MergedConn)
+	// unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
+	// unixTransportConn := unixTransportPacketConn.(MergedConn)
 
 	if err != nil {
+		fmt.Println("DISPERR")
 		return nil, err
 	}
 
-	listenAddr.Port = int(assignedPort)
+	// listenAddr.Port = listenAddr.Port
 
 	ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
 	enableFast := hasFastEnv && ENABLE_FAST == "true"
@@ -71,8 +72,10 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 	var udpTransportConn MergedConn
 
 	if enableFast {
+		fmt.Println(listenAddr)
 		udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
 		if err != nil {
+			fmt.Println("LISTENERR")
 			return nil, err
 		}
 	}
@@ -84,7 +87,7 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 		transportConn = udpTransportConn
 	} else {
 		fmt.Printf("Using unix as transportConn\n")
-		transportConn = unixTransportConn
+		// transportConn = unixTransportConn
 	}
 
 	packetParser, err := NewPacketParser()
@@ -102,8 +105,8 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 
 		packetParser: packetParser,
 
-		unixTransportConn: unixTransportConn,
-		udpTransportConn:  udpTransportConn,
+		// unixTransportConn: unixTransportConn,
+		udpTransportConn: udpTransportConn,
 	}
 
 	return &optimizedSCIONConn, nil
@@ -120,7 +123,8 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	}
 
 	nextHop := remoteAddr.NextHop
-
+	fmt.Println(oSC)
+	fmt.Println(remoteAddr.IA.String())
 	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
@@ -158,13 +162,17 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 }
 
 func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONConn, error) {
-
+	fmt.Println(listenAddr.String())
+	port := listenAddr.Port
+	listenAddr.Port, _ = freeport.GetFreePort()
 	oSC, err := Listen(listenAddr)
 
 	if err != nil {
+		fmt.Println("DASFASD")
 		return nil, err
 	}
-
+	listenAddr.Port = port
+	oSC.listenAddr = listenAddr
 	// We check, if there is a path.
 	if remoteAddr.Path.IsEmpty() {
 
@@ -233,7 +241,31 @@ func (c *OptimizedSCIONConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return 0, nil, err
 	}
 
-	return payloadLen, nil, nil
+	// if c.remoteAddr == nil {
+	packet := snet.Packet{
+		Bytes: c.packetParser.ReadBuffer,
+	}
+	err = packet.Decode()
+	if err != nil {
+		return 0, nil, err
+	}
+	pl := packet.PacketInfo.Payload.(snet.UDPPayload)
+
+	remoteAddr, err := snet.ParseUDPAddr(fmt.Sprintf("%s-%s,[%s]:%d", packet.Source.IA.I, packet.Source.IA.A, packet.Source.Host.IP().String(), pl.SrcPort))
+	if err != nil {
+		return 0, nil, err
+	}
+	if remoteAddr != nil && c.remoteAddr == nil {
+		fmt.Printf("Setting remote from %s to %s", c.remoteAddr, remoteAddr)
+		appnet.SetDefaultPath(remoteAddr)
+		c.SetRemote(remoteAddr)
+		// c.remoteAddr.Path = packet.Path
+		// fmt.Printf("ADDR: %s, from local %s\n\n", c.listenAddr.String(), c.remoteAddr.String())
+	}
+
+	// }
+
+	return payloadLen, c.remoteAddr, nil
 }
 
 func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
