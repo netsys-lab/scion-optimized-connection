@@ -1,17 +1,6 @@
 package main
 
-import (
-	"math/rand"
-	"net"
-	"testing"
-
-	"github.com/netsec-ethz/scion-apps/pkg/appnet"
-	optimizedconn "github.com/netsys-lab/scion-optimized-connection/pkg"
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/common"
-	"github.com/scionproto/scion/go/lib/snet"
-)
-
+/*
 func PreparePacket(payload []byte) (*snet.Packet, error) {
 	listenAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:31234")
 	if err != nil {
@@ -132,3 +121,4 @@ func BenchmarkStandardDeserialization(b *testing.B) {
 	}
 
 }
+*/

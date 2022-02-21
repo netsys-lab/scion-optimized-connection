@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/netsec-ethz/scion-apps/pkg/appnet"
 	"github.com/scionproto/scion/go/lib/addr"
 	"github.com/scionproto/scion/go/lib/serrors"
 	"github.com/scionproto/scion/go/lib/snet"
@@ -119,7 +118,8 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 	// We check, if there is a path.
 	if remoteAddr.Path.IsEmpty() {
 
-		err := appnet.SetDefaultPath(remoteAddr)
+		// err := appnet.SetDefaultPath(remoteAddr)
+		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +170,8 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	// We check, if there is a path.
 	if remoteAddr.Path.IsEmpty() {
 
-		err := appnet.SetDefaultPath(remoteAddr)
+		// err := appnet.SetDefaultPath(remoteAddr)
+		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
 		if err != nil {
 			return err
 		}

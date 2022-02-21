@@ -1,17 +1,6 @@
 package main
 
-import (
-	"math/rand"
-	"net"
-	"testing"
-
-	"github.com/netsec-ethz/scion-apps/pkg/appnet"
-	optimizedconn "github.com/netsys-lab/scion-optimized-connection/pkg"
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/common"
-	"github.com/scionproto/scion/go/lib/snet"
-)
-
+/*
 func BenchmarkOptimizedSerialization(b *testing.B) {
 
 	BYTES := 1200
@@ -113,3 +102,4 @@ func BenchmarkStandardSerialization(b *testing.B) {
 	}
 
 }
+*/
