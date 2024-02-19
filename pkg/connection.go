@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/serrors"
-	"github.com/scionproto/scion/go/lib/snet"
-	"github.com/scionproto/scion/go/lib/topology/underlay"
+	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/private/serrors"
+	"github.com/scionproto/scion/pkg/snet"
+	"github.com/scionproto/scion/private/topology"
 )
 
 type MergedConn interface {
@@ -116,7 +116,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 	}
 
 	// We check, if there is a path.
-	if remoteAddr.Path.IsEmpty() {
+	if remoteAddr.Path == nil {
 
 		// err := appnet.SetDefaultPath(remoteAddr)
 		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
@@ -138,7 +138,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 		} else {
 			nextHop = &net.UDPAddr{
 				IP:   remoteAddr.Host.IP,
-				Port: underlay.EndhostPort,
+				Port: topology.EndhostPort,
 				Zone: remoteAddr.Host.Zone,
 			}
 		}
@@ -168,7 +168,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	// We check, if there is a path.
-	if remoteAddr.Path.IsEmpty() {
+	if remoteAddr.Path == nil {
 
 		// err := appnet.SetDefaultPath(remoteAddr)
 		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
@@ -190,7 +190,7 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 		} else {
 			nextHop = &net.UDPAddr{
 				IP:   remoteAddr.Host.IP,
-				Port: underlay.EndhostPort,
+				Port: topology.EndhostPort,
 				Zone: remoteAddr.Host.Zone,
 			}
 		}

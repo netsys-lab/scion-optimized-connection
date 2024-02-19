@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/scionproto/scion/go/lib/addr"
-	"github.com/scionproto/scion/go/lib/daemon"
-	"github.com/scionproto/scion/go/lib/snet"
-	"github.com/scionproto/scion/go/lib/sock/reliable"
+	"github.com/scionproto/scion/pkg/addr"
+	"github.com/scionproto/scion/pkg/daemon"
+	"github.com/scionproto/scion/pkg/snet"
+	"github.com/scionproto/scion/pkg/sock/reliable"
 )
 
 // Took from appnet and modified a bit.
@@ -115,7 +115,7 @@ func isSocket(mode os.FileMode) bool {
 
 func queryPaths(sciond daemon.Connector, ctx context.Context, dst *snet.UDPAddr) ([]snet.Path, error) {
 	flags := daemon.PathReqFlags{Refresh: false, Hidden: false}
-	snetPaths, err := sciond.Paths(ctx, dst.IA, addr.IA{}, flags)
+	snetPaths, err := sciond.Paths(ctx, dst.IA, 0, flags)
 	return snetPaths, err
 }
 
@@ -125,7 +125,7 @@ func setDefaultPath(sciond daemon.Connector, ctx context.Context, dst *snet.UDPA
 		return err
 	}
 	if len(paths) > 0 {
-		dst.Path = paths[0].Path()
+		dst.Path = paths[0].Dataplane()
 		dst.NextHop = paths[0].UnderlayNextHop()
 		return nil
 	}
