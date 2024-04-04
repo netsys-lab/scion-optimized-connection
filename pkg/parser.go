@@ -123,6 +123,11 @@ func (pP *PacketParser) Parse(n int, readBytes []byte) (int, error) {
 	payloadLen := udpPayloadLen - 8
 	startPos := n - payloadLen
 
+	//srcPort := binary.BigEndian.Uint16(pP.ReadBuffer[startPos-8 : startPos-6])
+	//dstPort := binary.BigEndian.Uint16(pP.ReadBuffer[startPos-6 : startPos-4])
+
+	// fmt.Println("Got UDP Packet with SrcPort:", srcPort, "DstPort:", dstPort, "PayloadLen:", payloadLen)
+
 	copy(readBytes, pP.ReadBuffer[startPos:n])
 
 	return payloadLen, nil
