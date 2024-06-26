@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/topology"
@@ -54,36 +52,26 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 		return nil, err
 	}
 
-	unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
-	unixTransportConn := unixTransportPacketConn.(MergedConn)
+	// unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
+	// unixTransportConn := unixTransportPacketConn.(MergedConn)
 
-	if err != nil {
+	/*if err != nil {
 		return nil, err
-	}
+	}*/
 
-	listenAddr.Port = int(assignedPort)
+	// listenAddr.Port = int(assignedPort)
 
-	ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
-	enableFast := hasFastEnv && ENABLE_FAST == "true"
+	//ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
+	//enableFast := hasFastEnv && ENABLE_FAST == "true"
 
 	var udpTransportConn MergedConn
 
-	if enableFast {
-		udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
-		if err != nil {
-			return nil, err
-		}
+	//if enableFast {
+	udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
+	if err != nil {
+		return nil, err
 	}
-
-	var transportConn MergedConn
-
-	if udpTransportConn != nil {
-		fmt.Printf("Using udp as transportConn\n")
-		transportConn = udpTransportConn
-	} else {
-		fmt.Printf("Using unix as transportConn\n")
-		transportConn = unixTransportConn
-	}
+	//}
 
 	packetParser, err := NewPacketParser()
 
@@ -92,7 +80,7 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 	}
 
 	optimizedSCIONConn := OptimizedSCIONConn{
-		transportConn:       transportConn,
+		transportConn:       udpTransportConn,
 		connectivityContext: connectivityContext,
 
 		listenAddr: listenAddr,
@@ -100,8 +88,8 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 
 		packetParser: packetParser,
 
-		unixTransportConn: unixTransportConn,
-		udpTransportConn:  udpTransportConn,
+		// unixTransportConn: unixTransportConn,
+		udpTransportConn: udpTransportConn,
 	}
 
 	return &optimizedSCIONConn, nil
@@ -127,7 +115,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	nextHop := remoteAddr.NextHop
 
-	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	// fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
 			nextHop = &net.UDPAddr{
@@ -145,7 +133,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 
 	}
 
-	fmt.Printf("Using nextHop=%v\n", nextHop)
+	// fmt.Printf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
@@ -179,7 +167,7 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 
 	nextHop := remoteAddr.NextHop
 
-	fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
+	//  fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
 			nextHop = &net.UDPAddr{
@@ -196,7 +184,7 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 		}
 	}
 
-	fmt.Printf("Using nextHop=%v\n", nextHop)
+	// fmt.Printf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop

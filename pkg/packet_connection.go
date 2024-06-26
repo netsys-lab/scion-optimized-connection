@@ -3,13 +3,10 @@ package optimizedconn
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
-	"os"
 	"sync"
 	"time"
 
-	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/private/serrors"
 	"github.com/scionproto/scion/pkg/snet"
 	"github.com/scionproto/scion/private/topology"
@@ -48,28 +45,28 @@ func ListenPacket(listenAddr *net.UDPAddr) (*OptimizedSCIONPacketConn, error) {
 		return nil, err
 	}
 
-	unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
-	unixTransportConn := unixTransportPacketConn.(MergedConn)
+	//unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
+	//unixTransportConn := unixTransportPacketConn.(MergedConn)
 
-	if err != nil {
-		return nil, err
-	}
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	listenAddr.Port = int(assignedPort)
+	// listenAddr.Port = int(assignedPort)
 
-	ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
-	enableFast := hasFastEnv && ENABLE_FAST == "true"
+	//ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
+	//enableFast := hasFastEnv && ENABLE_FAST == "true"
 
 	var udpTransportConn MergedConn
 
-	if enableFast {
-		udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
-		if err != nil {
-			return nil, err
-		}
+	// if enableFast {
+	udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
+	if err != nil {
+		return nil, err
 	}
+	//}
 
-	var transportConn MergedConn
+	/*var transportConn MergedConn
 
 	if udpTransportConn != nil {
 		//fmt.Printf("Using udp as transportConn\n")
@@ -77,7 +74,7 @@ func ListenPacket(listenAddr *net.UDPAddr) (*OptimizedSCIONPacketConn, error) {
 	} else {
 		//fmt.Printf("Using unix as transportConn\n")
 		transportConn = unixTransportConn
-	}
+	}*/
 
 	packetParser, err := NewPacketParser()
 
@@ -86,7 +83,7 @@ func ListenPacket(listenAddr *net.UDPAddr) (*OptimizedSCIONPacketConn, error) {
 	}
 
 	optimizedSCIONConn := OptimizedSCIONPacketConn{
-		transportConn:       transportConn,
+		transportConn:       udpTransportConn,
 		connectivityContext: connectivityContext,
 
 		listenAddr: listenAddr,
@@ -94,7 +91,7 @@ func ListenPacket(listenAddr *net.UDPAddr) (*OptimizedSCIONPacketConn, error) {
 
 		packetParser: packetParser,
 
-		unixTransportConn: unixTransportConn,
+		// unixTransportConn: unixTransportConn,
 		udpTransportConn:  udpTransportConn,
 		packetSerializers: make(map[string]*PacketSerializer),
 	}
@@ -102,19 +99,52 @@ func ListenPacket(listenAddr *net.UDPAddr) (*OptimizedSCIONPacketConn, error) {
 	return &optimizedSCIONConn, nil
 }
 
-func (oSC *OptimizedSCIONPacketConn) addRemote(remoteAddr *snet.UDPAddr) error {
+// TODO: This needs to be fixed...
+func PathToString(path snet.Path) string {
+	// iterate over path.Metadata().Interfaces and append a string of all interfaces to a string
+	// return the string
 
-	_, ok := oSC.packetSerializers[remoteAddr.String()]
+	if path == nil {
+		return ""
+	}
+
+	if path.Metadata() == nil {
+		// fmt.Println("Path metadata is nil")
+		// Random number
+		// return string(rand.Intn(100))
+		return ""
+	}
+
+	var pathString string
+	for _, intf := range path.Metadata().Interfaces {
+		pathString += intf.String()
+	}
+	return pathString
+}
+
+func (oSC *OptimizedSCIONPacketConn) addRemote(remoteAddr *snet.UDPAddr) (*PacketSerializer, error) {
+
+	if remoteAddr.Path == nil {
+
+		// err := appnet.SetDefaultPath(remoteAddr)
+		// log.Fatal("No path found")
+		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	path, err := remoteAddr.GetPath()
+	if err != nil {
+		return nil, err
+	}
+
+	//fmt.Println("Got path ")
+	//fmt.Println(path)
+
+	ps, ok := oSC.packetSerializers[remoteAddr.String()+"-"+PathToString(path)]
 	if !ok {
 		// We check, if there is a path.
-		if remoteAddr.Path == nil {
-
-			// err := appnet.SetDefaultPath(remoteAddr)
-			err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
-			if err != nil {
-				return err
-			}
-		}
 
 		nextHop := remoteAddr.NextHop
 
@@ -147,13 +177,14 @@ func (oSC *OptimizedSCIONPacketConn) addRemote(remoteAddr *snet.UDPAddr) error {
 		)
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		oSC.packetSerializers[remoteAddr.String()] = packetSerializer
+		oSC.packetSerializers[remoteAddr.String()+"-"+PathToString(path)] = packetSerializer
+		return packetSerializer, nil
 	}
 
-	return nil
+	return ps, nil
 }
 
 func (c *OptimizedSCIONPacketConn) Close() error {
@@ -192,8 +223,11 @@ func (c *OptimizedSCIONPacketConn) WriteTo(b []byte, addr net.Addr) (int, error)
 	if !ok {
 		return 0, serrors.New("addr is not of type *snet.UDPAddr")
 	}
-	c.addRemote(sAddr)
-	serializer := c.packetSerializers[sAddr.String()]
+	serializer, err := c.addRemote(sAddr)
+	if err != nil {
+		return 0, err
+	}
+	// serializer := c.packetSerializers[sAddr.String()]
 
 	buffer, err := serializer.Serialize(b)
 	if err != nil {
@@ -215,7 +249,7 @@ func (oSC *OptimizedSCIONPacketConn) getNextHop(remoteAddr *snet.UDPAddr) *net.U
 
 	//fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	//fmt.Printf("Destination: %s\n", remoteAddr.String())
-	fmt.Println(nextHop)
+	// fmt.Println(nextHop)
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Equal(remoteAddr.Host.IP, oSC.listenAddr.IP) {
 			nextHop = &net.UDPAddr{

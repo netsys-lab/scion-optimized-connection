@@ -2,22 +2,20 @@ package optimizedconn
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/scionproto/scion/pkg/addr"
 	"github.com/scionproto/scion/pkg/daemon"
 	"github.com/scionproto/scion/pkg/snet"
-	"github.com/scionproto/scion/pkg/sock/reliable"
 )
 
 // Took from appnet and modified a bit.
 
 type ConnectivityContext struct {
 	DaemonConn daemon.Connector
-	Dispatcher reliable.Dispatcher
-	LocalIA    addr.IA
+	// Dispatcher reliable.Dispatcher
+	LocalIA addr.IA
 }
 
 func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, error) {
@@ -27,10 +25,10 @@ func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, erro
 		return nil, err
 	}
 
-	dispatcher, err := findDispatcher()
+	/*dispatcher, err := findDispatcher()
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
 	localIA, err := daemonConn.LocalIA(ctx)
 	if err != nil {
@@ -39,8 +37,8 @@ func PrepareConnectivityContext(ctx context.Context) (*ConnectivityContext, erro
 
 	cContext := ConnectivityContext{
 		DaemonConn: daemonConn,
-		Dispatcher: dispatcher,
-		LocalIA:    localIA,
+		// Dispatcher: dispatcher,
+		LocalIA: localIA,
 	}
 
 	return &cContext, nil
@@ -77,7 +75,7 @@ func findSciond(ctx context.Context) (daemon.Connector, error) {
 	return sciondConn, nil
 }
 
-func findDispatcher() (reliable.Dispatcher, error) {
+/*func findDispatcher() (reliable.Dispatcher, error) {
 	path, err := findDispatcherSocket()
 	if err != nil {
 		return nil, err
@@ -97,7 +95,7 @@ func findDispatcherSocket() (string, error) {
 	}
 	return path, nil
 }
-
+*/
 func statSocket(path string) error {
 	fileinfo, err := os.Stat(path)
 	if err != nil {
@@ -130,6 +128,7 @@ func setDefaultPath(sciond daemon.Connector, ctx context.Context, dst *snet.UDPA
 		return nil
 	}
 
-	return errors.New("No path found")
+	// return errors.New("No path2 found")
+	return nil
 
 }
