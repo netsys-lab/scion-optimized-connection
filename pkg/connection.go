@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -52,26 +51,12 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 		return nil, err
 	}
 
-	// unixTransportPacketConn, assignedPort, err := connectivityContext.Dispatcher.Register(ctx, connectivityContext.LocalIA, listenAddr, addr.SvcNone)
-	// unixTransportConn := unixTransportPacketConn.(MergedConn)
-
-	/*if err != nil {
-		return nil, err
-	}*/
-
-	// listenAddr.Port = int(assignedPort)
-
-	//ENABLE_FAST, hasFastEnv := os.LookupEnv("ENABLE_FAST")
-	//enableFast := hasFastEnv && ENABLE_FAST == "true"
-
 	var udpTransportConn MergedConn
 
-	//if enableFast {
 	udpTransportConn, err = net.ListenUDP("udp4", listenAddr)
 	if err != nil {
 		return nil, err
 	}
-	//}
 
 	packetParser, err := NewPacketParser()
 
@@ -88,7 +73,6 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 
 		packetParser: packetParser,
 
-		// unixTransportConn: unixTransportConn,
 		udpTransportConn: udpTransportConn,
 	}
 
@@ -103,19 +87,8 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 		return nil, err
 	}
 
-	// We check, if there is a path.
-	if remoteAddr.Path == nil {
-
-		// err := appnet.SetDefaultPath(remoteAddr)
-		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	nextHop := remoteAddr.NextHop
 
-	// fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
 			nextHop = &net.UDPAddr{
@@ -132,8 +105,6 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 		}
 
 	}
-
-	// fmt.Printf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
@@ -155,19 +126,9 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 }
 
 func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
-	// We check, if there is a path.
-	if remoteAddr.Path == nil {
-
-		// err := appnet.SetDefaultPath(remoteAddr)
-		err := setDefaultPath(oSC.connectivityContext.DaemonConn, context.Background(), remoteAddr)
-		if err != nil {
-			return err
-		}
-	}
 
 	nextHop := remoteAddr.NextHop
 
-	//  fmt.Printf("localIA=%v, remoteIA=%v\n", oSC.connectivityContext.LocalIA.String(), remoteAddr.IA.String())
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
 			nextHop = &net.UDPAddr{
@@ -183,8 +144,6 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 			}
 		}
 	}
-
-	// fmt.Printf("Using nextHop=%v\n", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
