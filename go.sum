@@ -84,8 +84,8 @@ github.com/prometheus/procfs v0.14.0 h1:Lw4VdGGoKEZilJsayHf0B+9YgLGREba2C6xr+Fdf
 github.com/prometheus/procfs v0.14.0/go.mod h1:XL+Iwz8k8ZabyZfMFHPiilCniixqQarAy5Mu67pHlNQ=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
-github.com/scionproto/scion v0.11.1-0.20240624161939-83a83c476474 h1:5hKjJgbwyh0qM67IxTWi9sSmHjQ5shgYrj57Kg6NfpU=
-github.com/scionproto/scion v0.11.1-0.20240624161939-83a83c476474/go.mod h1:paxrF6VreownCN7E7Rdri6ifXMkiq3leFGoP6n/BFC4=
+github.com/scionproto/scion v0.12.0 h1:NbBa1HAxWOXr40C8YuanGhJ3g5hYlJetR5YevKtnHGQ=
+github.com/scionproto/scion v0.12.0/go.mod h1:jOmbOiLREf4zn6cNrFqto35rP3eH6RhDJEmrjmJIUUI=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

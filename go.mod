@@ -1,8 +1,10 @@
 module github.com/netsys-lab/scion-optimized-connection
 
-go 1.21.10
+go 1.22.7
 
-require github.com/scionproto/scion v0.11.1-0.20240624161939-83a83c476474
+toolchain go1.22.8
+
+require github.com/scionproto/scion v0.12.0
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
