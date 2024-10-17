@@ -84,7 +84,7 @@ func PathToString(path snet.Path) string {
 	}
 
 	if path.Metadata() == nil {
-		// fmt.Println("Path metadata is nil")
+		// Log.Info("Path metadata is nil")
 		// Random number
 		// return string(rand.Intn(100))
 		return ""
@@ -149,15 +149,15 @@ func (oSC *OptimizedSCIONPacketConn) addRemote(remoteAddr *snet.UDPAddr) (*Packe
 
 func (c *OptimizedSCIONPacketConn) Close() error {
 
-	if c.udpTransportConn != nil {
+	/*if c.udpTransportConn != nil {
 		err := c.udpTransportConn.Close()
 
 		if err != nil {
 			return err
 		}
-	}
+	}*/
 
-	return c.unixTransportConn.Close()
+	return c.transportConn.Close()
 }
 
 func (c *OptimizedSCIONPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
@@ -225,7 +225,7 @@ func (oSC *OptimizedSCIONPacketConn) getNextHop(remoteAddr *snet.UDPAddr) *net.U
 		} else {
 			nextHop = &net.UDPAddr{
 				IP:   remoteAddr.Host.IP,
-				Port: topology.EndhostPort,
+				Port: remoteAddr.Host.Port, // topology.EndhostPort,
 				Zone: remoteAddr.Host.Zone,
 			}
 
@@ -240,37 +240,37 @@ func (c *OptimizedSCIONPacketConn) LocalAddr() net.Addr {
 }
 
 func (c *OptimizedSCIONPacketConn) SetDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
+	/*if c.udpTransportConn != nil {
 		err := c.udpTransportConn.SetDeadline(t)
 
 		if err != nil {
 			return err
 		}
-	}
+	}*/
 
-	return c.unixTransportConn.SetDeadline(t)
+	return c.transportConn.SetDeadline(t)
 }
 
 func (c *OptimizedSCIONPacketConn) SetReadDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
+	/*if c.udpTransportConn != nil {
 		err := c.udpTransportConn.SetReadDeadline(t)
 
 		if err != nil {
 			return err
 		}
-	}
+	}*/
 
-	return c.unixTransportConn.SetReadDeadline(t)
+	return c.transportConn.SetReadDeadline(t)
 }
 
 func (c *OptimizedSCIONPacketConn) SetWriteDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
+	/*if c.udpTransportConn != nil {
 		err := c.udpTransportConn.SetWriteDeadline(t)
 
 		if err != nil {
 			return err
 		}
-	}
+	}*/
 
-	return c.unixTransportConn.SetWriteDeadline(t)
+	return c.transportConn.SetWriteDeadline(t)
 }

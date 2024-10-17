@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -35,6 +36,7 @@ type OptimizedSCIONConn struct {
 	packetSerializer *PacketSerializer
 
 	connectivityContext *ConnectivityContext
+	replyPather         snet.ReplyPather
 }
 
 var _ net.Conn = &OptimizedSCIONConn{}
@@ -74,6 +76,7 @@ func Listen(listenAddr *net.UDPAddr) (*OptimizedSCIONConn, error) {
 		packetParser: packetParser,
 
 		udpTransportConn: udpTransportConn,
+		replyPather:      snet.DefaultReplyPather{},
 	}
 
 	return &optimizedSCIONConn, nil
@@ -99,7 +102,7 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 		} else {
 			nextHop = &net.UDPAddr{
 				IP:   remoteAddr.Host.IP,
-				Port: topology.EndhostPort,
+				Port: remoteAddr.Host.Port, // topology.EndhostPort,
 				Zone: remoteAddr.Host.Zone,
 			}
 		}
@@ -130,18 +133,28 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 	nextHop := remoteAddr.NextHop
 
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
-		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
-			nextHop = &net.UDPAddr{
-				IP:   remoteAddr.Host.IP,
-				Port: remoteAddr.Host.Port,
-				Zone: remoteAddr.Host.Zone,
-			}
-		} else {
+		if bytes.Equal(remoteAddr.Host.IP, oSC.listenAddr.IP) {
 			nextHop = &net.UDPAddr{
 				IP:   remoteAddr.Host.IP,
 				Port: topology.EndhostPort,
 				Zone: remoteAddr.Host.Zone,
 			}
+
+			if oSC.udpTransportConn != nil {
+				nextHop = &net.UDPAddr{
+					IP:   remoteAddr.Host.IP,
+					Port: remoteAddr.Host.Port,
+					Zone: remoteAddr.Host.Zone,
+				}
+			}
+
+		} else {
+			nextHop = &net.UDPAddr{
+				IP:   remoteAddr.Host.IP,
+				Port: remoteAddr.Host.Port, // topology.EndhostPort,
+				Zone: remoteAddr.Host.Zone,
+			}
+
 		}
 	}
 
@@ -164,15 +177,7 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 
 func (c *OptimizedSCIONConn) Close() error {
 
-	if c.udpTransportConn != nil {
-		err := c.udpTransportConn.Close()
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return c.unixTransportConn.Close()
+	return c.transportConn.Close()
 }
 
 func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
@@ -183,18 +188,59 @@ func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 		return 0, err
 	}
 
-	payloadLen, err := c.packetParser.Parse(n, b)
+	// fmt.Println("Read packet")
 
-	if err != nil {
-		return 0, err
+	if c.remoteAddr == nil {
+		pkt := snet.Packet{
+			Bytes: snet.Bytes(c.packetParser.ReadBuffer[:n]),
+		}
+		err := pkt.Decode()
+		if err != nil {
+			return 0, err
+		}
+
+		remoteAddr := pkt.Source
+		rpath, ok := pkt.Path.(snet.RawPath)
+		if !ok {
+			return 0, fmt.Errorf("expected RawPath, got %T", pkt.Path)
+		}
+
+		replyPath, err := c.replyPather.ReplyPath(rpath)
+		if err != nil {
+			return 0, fmt.Errorf("creating reply path: %s", err)
+		}
+
+		udp, ok := pkt.Payload.(snet.UDPPayload)
+		if !ok {
+			return 0, fmt.Errorf("unexpected payload")
+		}
+
+		// fmt.Println("Set remote address to", remoteAddr)
+		destAddr := fmt.Sprintf("%s:%d", remoteAddr, udp.SrcPort)
+
+		destScionAddr, err := snet.ParseUDPAddr(destAddr)
+		if err != nil {
+			return 0, err
+		}
+		destScionAddr.Path = replyPath
+		c.SetRemote(destScionAddr)
+		return 0, nil
+	} else {
+		payloadLen, err := c.packetParser.Parse(n, b)
+
+		if err != nil {
+			return 0, err
+		}
+
+		return payloadLen, nil
 	}
 
-	return payloadLen, nil
 }
 
 func (c *OptimizedSCIONConn) Write(b []byte) (int, error) {
 
 	if c.nextHop == nil || c.remoteAddr == nil || c.packetSerializer == nil {
+		fmt.Println("Connection does not support send functionality")
 		return 0, errors.New("Connection does not support send functionality")
 	}
 
@@ -202,6 +248,8 @@ func (c *OptimizedSCIONConn) Write(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+
+	// fmt.Println("Write packet to", c.nextHop)
 
 	_, err = c.transportConn.WriteTo(buffer, c.nextHop)
 
@@ -220,37 +268,13 @@ func (c *OptimizedSCIONConn) RemoteAddr() net.Addr {
 }
 
 func (c *OptimizedSCIONConn) SetDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
-		err := c.udpTransportConn.SetDeadline(t)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return c.unixTransportConn.SetDeadline(t)
+	return c.transportConn.SetDeadline(t)
 }
 
 func (c *OptimizedSCIONConn) SetReadDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
-		err := c.udpTransportConn.SetReadDeadline(t)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return c.unixTransportConn.SetReadDeadline(t)
+	return c.transportConn.SetReadDeadline(t)
 }
 
 func (c *OptimizedSCIONConn) SetWriteDeadline(t time.Time) error {
-	if c.udpTransportConn != nil {
-		err := c.udpTransportConn.SetWriteDeadline(t)
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return c.unixTransportConn.SetWriteDeadline(t)
+	return c.transportConn.SetWriteDeadline(t)
 }
