@@ -37,6 +37,7 @@ type OptimizedSCIONConn struct {
 
 	connectivityContext *ConnectivityContext
 	replyPather         snet.ReplyPather
+	counter             uint64
 }
 
 var _ net.Conn = &OptimizedSCIONConn{}
@@ -91,6 +92,12 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 	}
 
 	nextHop := remoteAddr.NextHop
+	if nextHop == nil && !oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
+		path, _ := remoteAddr.GetPath()
+		fmt.Println("Path is", path)
+		nextHop = path.UnderlayNextHop()
+		fmt.Println("Next hop is", nextHop)
+	}
 
 	if nextHop == nil && oSC.connectivityContext.LocalIA.Equal(remoteAddr.IA) {
 		if bytes.Compare(remoteAddr.Host.IP, oSC.listenAddr.IP) == 0 {
@@ -108,6 +115,9 @@ func Dial(listenAddr *net.UDPAddr, remoteAddr *snet.UDPAddr) (*OptimizedSCIONCon
 		}
 
 	}
+
+	// fmt.Println("Set remote address to", remoteAddr)
+	// fmt.Println("Next hop address to", nextHop)
 
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
@@ -157,7 +167,8 @@ func (oSC *OptimizedSCIONConn) SetRemote(remoteAddr *snet.UDPAddr) error {
 
 		}
 	}
-
+	fmt.Println("Set remote address to", remoteAddr)
+	fmt.Println("Next hop ", nextHop)
 	oSC.remoteAddr = remoteAddr
 	oSC.nextHop = nextHop
 
@@ -182,7 +193,10 @@ func (c *OptimizedSCIONConn) Close() error {
 
 func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 
-	n, err := c.transportConn.Read(c.packetParser.ReadBuffer)
+	n, underlay, err := c.transportConn.ReadFrom(c.packetParser.ReadBuffer)
+	// fmt.Println("READ FROM TRANSPORT ", underlay)
+
+	// fmt.Println("Underlay addr ", undAddr)
 
 	if err != nil {
 		return 0, err
@@ -191,6 +205,13 @@ func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 	// fmt.Println("Read packet")
 
 	if c.remoteAddr == nil {
+		undAddr, ok := underlay.(*net.UDPAddr)
+		//c.counter++
+		//fmt.Println("Counter ", c.counter)
+
+		if !ok {
+			return 0, fmt.Errorf("failed to parse underlay address")
+		}
 		pkt := snet.Packet{
 			Bytes: snet.Bytes(c.packetParser.ReadBuffer[:n]),
 		}
@@ -223,6 +244,7 @@ func (c *OptimizedSCIONConn) Read(b []byte) (int, error) {
 			return 0, err
 		}
 		destScionAddr.Path = replyPath
+		destScionAddr.NextHop = undAddr
 		c.SetRemote(destScionAddr)
 		return 0, nil
 	} else {

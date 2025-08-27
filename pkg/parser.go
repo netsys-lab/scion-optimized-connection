@@ -3,6 +3,7 @@ package optimizedconn
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/scionproto/scion/pkg/addr"
@@ -77,6 +78,7 @@ func (pS *PacketSerializer) Serialize(b []byte) ([]byte, error) {
 
 	// Network Byte Order is Big Endian
 	binary.BigEndian.PutUint16(pS.baseBytes[6:8], uint16(pS.basePayloadBytes+l4PayloadSize))
+	// fmt.Println("Sending to remote address:", pS.remoteAddr.Host.IP, "Port:", pS.remoteAddr.Host.Port)
 
 	binary.BigEndian.PutUint16(pS.baseBytes[pS.headerBytes+0:pS.headerBytes+2], uint16(pS.listenAddr.Port))
 	binary.BigEndian.PutUint16(pS.baseBytes[pS.headerBytes+2:pS.headerBytes+4], uint16(pS.remoteAddr.Host.Port))
@@ -115,7 +117,7 @@ func (pP *PacketParser) Parse(n int, readBytes []byte) (int, error) {
 	nextHdr := uint16(pP.ReadBuffer[4])
 
 	if nextHdr != SCION_PROTOCOL_NUMBER_SCION_UDP {
-		return 0, errors.New("Unknown Packet")
+		return 0, errors.New("Unknown Packet: " + fmt.Sprint(nextHdr))
 	}
 
 	udpPayloadLen := int(binary.BigEndian.Uint16(pP.ReadBuffer[6:8]))
